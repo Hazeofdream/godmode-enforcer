@@ -11,7 +11,6 @@ local defaultSettings = {
     neverScale = false,
     maxDist = 2000,
     scale = 1.0,
-    scaleHarshness = 1.0,
     coneLeniency = 3,
     tagColor = { r = 255, g = 220, b = 0 },
     boxAlpha = 160
@@ -19,8 +18,8 @@ local defaultSettings = {
 
 -- ===== Settings load/save =====
 local function LoadSettings()
-    if file.Exists(settingsFile, "data") then
-        local data = file.Read(settingsFile, "data")
+    if file.Exists(settingsFile, "DATA") then
+        local data = file.Read(settingsFile, "DATA")
         local tbl = util.JSONToTable(data or "")
         if istable(tbl) then
             settings = table.Merge(table.Copy(defaultSettings), tbl)
@@ -88,14 +87,14 @@ hook.Add("HUDPaint", "GodmodeEnforcer_2D_Draw", function()
     if not IsValid(lp) or not lp:Alive() then return end
     if not settings.enable then return end
 
-    local maxdist      = math.max(0, tonumber(settings.maxDist) or 0)
+    local maxdist      = math.max(0, tonumber(settings.maxDist) or defaultSettings.maxDist)
+    local unlimited    = (maxdist <= 0)
     local throughWalls = settings.throughWalls
     local alwaysOnLook = settings.alwaysOnLook
     local neverScale   = settings.neverScale
-    local scaleMult    = tonumber(settings.scale) or 1.0
-    local harshness    = tonumber(settings.scaleHarshness) or 1.0
-    local coneLen      = math.Clamp(tonumber(settings.coneLeniency) or 8, 1, 16)
-    local boxAlpha     = math.Clamp(tonumber(settings.boxAlpha) or 160, 0, 255)
+    local scaleMult    = tonumber(settings.scale) or defaultSettings.scale
+    local coneLen      = math.Clamp(tonumber(settings.coneLeniency) or defaultSettings.coneLeniency, 1, 16)
+    local boxAlpha     = math.Clamp(tonumber(settings.boxAlpha) or defaultSettings.boxAlpha, 0, 255)
     local col          = settings.tagColor or defaultSettings.tagColor
     local tagCol       = Color(col.r, col.g, col.b, 255)
 
@@ -109,30 +108,36 @@ hook.Add("HUDPaint", "GodmodeEnforcer_2D_Draw", function()
         if not scr.visible then continue end
 
         local dist = lp:GetPos():Distance(ply:GetPos())
-        local withinRange = (maxdist <= 0) or (dist <= maxdist)
+        local withinRange = unlimited or (dist <= maxdist)
 
         local looking = IsLookingAt(lp, ply, coneLen)
         if looking and alwaysOnLook then
-            withinRange = true
+            withinRange = true -- affects distance only
         end
         if not withinRange then continue end
 
-        if not throughWalls then
-            if not CanSeePlayer(lp, ply) and not (looking and alwaysOnLook) then continue end
+        -- line-of-sight check is separate
+        if not throughWalls and not CanSeePlayer(lp, ply) then
+            continue
         end
 
-        -- font scaling
+        -- ===== FONT SCALING =====
         local baseSize = 22
-        local fontSize
-        if neverScale or maxdist <= 0 then
-            fontSize = math.max(10, math.Round(baseSize * scaleMult))
-        else
-            local factor = (2000 / math.sqrt(dist)) ^ harshness
-            fontSize = math.max(10, math.Round(baseSize * scaleMult * math.Clamp(factor, 0.6, 1.6)))
-        end
-        local fontToUse = GetScaledFontName(fontSize)
+        local fontSize = baseSize * scaleMult
 
+        if neverScale and not unlimited then
+            local norm = math.min(dist / maxdist, 1)
+            local ease = math.sqrt(norm) -- smoother curve
+            local scaleFactor = 1 - ease
+            scaleFactor = math.Clamp(scaleFactor, 0.5, 1.5)
+            fontSize = math.max(10, math.Round(fontSize * scaleFactor))
+        else
+            fontSize = math.max(10, math.Round(fontSize))
+        end
+
+        local fontToUse = GetScaledFontName(fontSize)
         local text = ply:IsFrozen() and "FROZEN" or "GODMODE"
+
         surface.SetFont(fontToUse)
         local tw, th = surface.GetTextSize(text)
         local x = scr.x
@@ -181,7 +186,7 @@ hook.Add("PopulateToolMenu", "GodmodeEnforcer_OptionsMenu", function()
         panel:AddItem(look)
 
         local nscale = vgui.Create("DCheckBoxLabel", panel)
-        nscale:SetText("Never Scale")
+        nscale:SetText("Never Scale Nametag on Distance")
         nscale:SetValue(settings.neverScale and 1 or 0)
         nscale:Dock(TOP)
         nscale:DockMargin(4,2,4,2)
@@ -214,19 +219,6 @@ hook.Add("PopulateToolMenu", "GodmodeEnforcer_OptionsMenu", function()
         scale.OnValueChanged = function(_, val) settings.scale = val; SaveSettings() end
         scale.Label:SetFont("DermaDefaultBold")
         panel:AddItem(scale)
-
-        local harsh = vgui.Create("DNumSlider", panel)
-        harsh:SetText("Fade Scale")
-        harsh:SetMin(0)
-        harsh:SetMax(5)
-        harsh:SetDecimals(1)
-        harsh:SetValue(settings.scaleHarshness)
-        harsh:Dock(TOP)
-        harsh:DockMargin(4,2,4,2)
-        harsh.OnValueChanged = function(_, val) settings.scaleHarshness = val; SaveSettings() end
-        harsh.Label:SetFont("DermaDefaultBold")
-        panel:AddItem(harsh)
-        panel:ControlHelp("0 = no scale falloff, higher = harsher scaling")
 
         local cone = vgui.Create("DNumSlider", panel)
         cone:SetText("Cone Leniency")
@@ -269,7 +261,7 @@ hook.Add("PopulateToolMenu", "GodmodeEnforcer_OptionsMenu", function()
 end)
 
 -- First run hint
-if not file.Exists("godmode_enforcer/seen_hint.txt", "data") then
+if not file.Exists("godmode_enforcer/seen_hint.txt", "DATA") then
     print("Open the spawnmenu (Q) → Options → Godmode Enforcer to edit settings.")
     file.CreateDir("godmode_enforcer")
     file.Write("godmode_enforcer/seen_hint.txt", "1")
