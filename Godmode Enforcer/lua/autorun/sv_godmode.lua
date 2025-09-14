@@ -2,7 +2,7 @@ if not SERVER then return end
 
 -- Allow noclip only for godmode players or allowed groups.
 hook.Add("PlayerNoClip", "GODMODE_ControlNoClip", function(ply, state)
-    if ply:HasGodMode() and state then
+    if ply:HasGodMode() then
         return true 
     end
 
