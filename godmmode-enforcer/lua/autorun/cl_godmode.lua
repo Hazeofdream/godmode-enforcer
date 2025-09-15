@@ -1,8 +1,8 @@
 if not CLIENT then return end
 
 -- Branding Options
-local GodmodeCategory = "Excelsus"
-local GodmodeSubName = "Nametags"
+local PanelCategory = "Excelsus"
+local PanelName = "Nametags"
 
 local settingsFile = "godmode_enforcer/settings.json"
 local settings = {}
@@ -159,7 +159,7 @@ end)
 
 -- ===== Options menu =====
 hook.Add("PopulateToolMenu", "GodmodeEnforcer_OptionsMenu", function()
-    spawnmenu.AddToolMenuOption("Options", GodmodeCategory, GodmodeSubName, "GodmodePanel", "", "", function(panel)
+    spawnmenu.AddToolMenuOption("Options", PanelCategory, "GodmodePanel", PanelName, "", "", function(panel)
         panel:Clear()
 
         local enable = vgui.Create("DCheckBoxLabel", panel)
